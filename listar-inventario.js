@@ -1,58 +1,59 @@
-// listarInventario.js
+// inventory-list.js
 import fetch from "node-fetch";
 import { SESSION_ID, STEAM_LOGIN_SECURE, STEAM_ID } from "./secrets.js";
 import fs from "fs";
 
-// Pega aquí tus cookies desde Steam Web
+// Paste your cookies from Steam Web here
 const sessionid = SESSION_ID;
 const steamLoginSecure = STEAM_LOGIN_SECURE;
 const itemsFile = "items.json";
 
-// Configuraciones de constantes
-const delayDuration = 1000; // milisegundos entre requests para evitar rate limits
-const longDelayDuration = 60000; // 60 segundos para esperas largas
+// Constant configurations
+const delayDuration = 1000; // milliseconds between requests to avoid rate limits
+const longDelayDuration = 60000; // 60 seconds for long waits
+const wantToSellItem = true; // Default value for new items in items.json
 
-// Reemplaza con tu SteamID64 (lo ves en tu perfil -> "steamid.io")
+// Replace with your SteamID64 (see your profile -> "steamid.io")
 const steamid = STEAM_ID;
 
-// Menú interactivo para testear funciones
+// Interactive menu to test functions
 async function runTests() {
   const tests = [
+    { name: "Show Full Inventory", fn: retrieveAndDisplayInventories },
+    { name: "Sell Items", fn: sellItems },
     { name: "Test API Call", fn: testApiCall },
-    { name: "Listar cromos solo Steam", fn: listSteamTradingCards },
-    { name: "Listar cromos todos los juegos", fn: listTradingCards },
-    { name: "Mostrar inventario completo", fn: showAllInventories },
     { name: "Test PriceOverview", fn: testPriceOverview },
-    { name: "Vender ítems", fn: sellItems },
+    { name: "List Steam Trading Cards Only", fn: listSteamTradingCards },
+    { name: "List Trading Cards All Games", fn: listTradingCards },
   ];
-  console.log("\nSelecciona una función para testear:");
+  console.log("\nSelect a function to test:");
   tests.forEach((t, i) => console.log(`${i + 1}. ${t.name}`));
   const readline = await import('readline');
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  rl.question("\nIngresa el número de la función: ", async (answer) => {
+  rl.question("\nEnter the function number: ", async (answer) => {
     const idx = parseInt(answer) - 1;
     rl.close();
     if (tests[idx]) {
       await tests[idx].fn();
     } else {
-      console.log("Opción inválida.");
+      console.log("Invalid option.");
     }
   });
 }
 
-// Test para consultar priceoverview
+// Test to query priceoverview
 async function testPriceOverview() {
   const url = "https://steamcommunity.com/market/priceoverview/?currency=1&appid=753&market_hash_name=250180-MARCO%20ROSSI";
   getLowestPrice("250180-MARCO ROSSI", 753).then(price => {
     if (price) {
-      console.log(`Precio más bajo para MARCO ROSSI: $${(price / 100).toFixed(2)}`);
+      console.log(`Lowest price for MARCO ROSSI: $${(price / 100).toFixed(2)}`);
     } else {
-      console.log("No se encontró precio para MARCO ROSSI.");
+      console.log("No price found for MARCO ROSSI.");
     }
   });
 }
 
-// Función reutilizable para hacer fetch con headers y parsear a JSON
+// Reusable function to fetch with headers and parse to JSON
 async function fetchSteamJson(url) {
   const res = await fetch(url, {
     headers: {
@@ -64,80 +65,82 @@ async function fetchSteamJson(url) {
   try {
     data = JSON.parse(rawText);
   } catch (e) {
-    console.log("❌ Error al parsear la respuesta JSON:", e);
-    console.log("Respuesta cruda:\n", rawText);
+    console.log("❌ Error parsing JSON response:", e);
+    console.log("Raw response:\n", rawText);
     return null;
   }
   return data;
 }
 
-// Función de prueba para mostrar la respuesta cruda de la API
+// Test function to show raw API response
 async function testApiCall() {
   const url = `https://steamcommunity.com/inventory/${steamid}/753/6?l=english&count=5`;
-  console.log(`\nProbando llamada a la API: ${url}`);
+  console.log(`\nTesting API call: ${url}`);
   const data = await fetchSteamJson(url);
-  console.log("Respuesta cruda de la API:\n", data);
+  console.log("Raw API response:\n", data);
 }
 
-// Función para listar cromos solo del inventario de Steam
+// Function to list only Steam trading cards
 async function listSteamTradingCards() {
   const url = `https://steamcommunity.com/inventory/${steamid}/753/6?l=english&count=500`;
-  console.log(`\nConsultando cromos en Steam...`);
+  console.log(`\nFetching Steam trading cards...`);
   const data = await fetchSteamJson(url);
   if (!data || !data.descriptions || !data.assets) {
-    console.log("❌ No se pudo cargar el inventario de Steam.");
+    console.log("❌ Could not load Steam inventory.");
     return;
   }
   const cards = data.descriptions.filter(desc => desc.type && desc.type.toLowerCase().includes("trading card"));
   if (cards.length === 0) {
-    console.log("No se encontraron cromos en el inventario de Steam.");
+    console.log("No trading cards found in Steam inventory.");
     return;
   }
   let totalCards = 0;
-  console.log("\n🎴 Cromos en Steam:");
+  console.log("\n🎴 Steam Trading Cards:");
   for (const card of cards) {
     const asset = data.assets.find(a => a.classid === card.classid && a.instanceid === card.instanceid);
-    const cantidad = asset ? asset.amount : 1;
-    console.log(`- ${card.market_name} (Cantidad: ${cantidad})`);
-    totalCards += parseInt(cantidad);
+    const amount = asset ? asset.amount : 1;
+    console.log(`- ${card.market_name} (Amount: ${amount})`);
+    totalCards += parseInt(amount);
   }
-  console.log(`\nTotal de cromos en Steam: ${totalCards}`);
+  console.log(`\nTotal Steam trading cards: ${totalCards}`);
 }
 
-// Función para listar solo los cromos (trading cards) de todos los juegos
+// Function to list only trading cards from all games
 async function listTradingCards() {
   const allInventories = await getInventory();
   let totalCards = 0;
   for (const inv of allInventories) {
     const cards = inv.descriptions.filter(desc => desc.type && desc.type.toLowerCase().includes("trading card"));
     if (cards.length > 0) {
-      console.log(`\n🎴 Cromos de ${inv.name}:`);
+      console.log(`\n🎴 Trading Cards from ${inv.name}:`);
       for (const card of cards) {
-        // Buscar cantidad del cromo
+        // Find card amount
         const asset = inv.assets.find(a => a.classid === card.classid && a.instanceid === card.instanceid);
-        const cantidad = asset ? asset.amount : 1;
-        console.log(`- ${card.market_name} (Cantidad: ${cantidad})`);
-        totalCards += parseInt(cantidad);
+        const amount = asset ? asset.amount : 1;
+        console.log(`- ${card.market_name} (Amount: ${amount})`);
+        totalCards += parseInt(amount);
       }
     }
   }
-  console.log(`\nTotal de cromos encontrados: ${totalCards}`);
+  console.log(`\nTotal trading cards found: ${totalCards}`);
 }
 
 async function getInventory() {
-  // Lista de juegos y contextos populares
+  // List of popular games and contexts
   const games = [
     { appid: 753, contextid: 6, name: "Steam" },
     { appid: 730, contextid: 2, name: "CS:GO" },
     { appid: 570, contextid: 2, name: "Dota 2" },
     { appid: 440, contextid: 2, name: "TF2" },
-    { appid: 238010, contextid: 1, name: "Deus Ex: Human Revolution" }, // contextid 1 es común para la mayoría de juegos
+    { appid: 238010, contextid: 1, name: "Deus Ex: Human Revolution" }, // contextid 1 is common for most games
+    { appid: 1091500, contextid: 1, name: "Cyberpunk 2077" },
+    // add more games as needed 
   ];
 
   let allItems = [];
   for (const game of games) {
     const url = `https://steamcommunity.com/inventory/${steamid}/${game.appid}/${game.contextid}?l=english&count=500`;
-    console.log(`Consultando inventario de ${game.name}...`);
+    console.log(`Fetching inventory for ${game.name}...`);
     const data = await fetchSteamJson(url);
     if (data && data.descriptions && data.assets) {
       allItems.push({
@@ -146,9 +149,9 @@ async function getInventory() {
         assets: data.assets,
       });
     } else {
-      console.log(`❌ No se pudo cargar inventario de ${game.name}.`);
+      console.log(`❌ Could not load inventory for ${game.name}.`);
     }
-    await delayExecution(); // pausa entre requests
+    await delayExecution(); // pause between requests
   }
   return allItems;
 }
@@ -163,42 +166,38 @@ async function getLowestPrice(itemName, appid) {
 
   if (!data || !data.lowest_price) return null;
   let priceStr = data.lowest_price.replace("$", "");
-  return Math.round(parseFloat(priceStr) * 100); // en centavos
+  return Math.round(parseFloat(priceStr) * 100); // in cents
 }
 
-// Función para mostrar el inventario completo de todos los juegos
-// Utilidades para manejar items.json
-
-
-// Leer items.json (devuelve array)
+// Read items.json (returns array)
 function readItemsJson() {
   if (fs.existsSync(itemsFile)) {
     try {
       return JSON.parse(fs.readFileSync(itemsFile, "utf8"));
     } catch (e) {
-      console.error("❌ Error al leer items.json:", e);
+      console.error("❌ Error reading items.json:", e);
       return [];
     }
   }
   return [];
 }
 
-// Guardar array en items.json
+// Save array to items.json
 function writeItemsJson(itemsData) {
   try {
     fs.writeFileSync(itemsFile, JSON.stringify(itemsData, null, 2));
   } catch (e) {
-    console.error("❌ Error al guardar items.json:", e);
+    console.error("❌ Error saving items.json:", e);
   }
 }
 
-// Buscar un ítem por assetid
+// Find an item by assetid
 function findItemByAssetId(itemsData, assetid) {
   return itemsData.find((item) => item.assetid === assetid);
 }
 
-// Mostrar el inventario completo de todos los juegos y guardar info en items.json
-async function showAllInventories() {
+// Show the full inventory of all games and save info to items.json
+async function retrieveAndDisplayInventories() {
   const allInventories = await getInventory();
 
   let itemsData = readItemsJson();
@@ -206,7 +205,7 @@ async function showAllInventories() {
   let totalItems = 0;
   let index = 0;
   for (const inv of allInventories) {
-    console.log(`\n📦 Inventario de ${inv.name}: ${inv.descriptions.length} items`);
+    console.log(`\n📦 Inventory of ${inv.name}: ${inv.descriptions.length} items`);
     totalItems += inv.descriptions.length;
     for (const item of inv.descriptions) {
       index++;
@@ -224,49 +223,50 @@ async function showAllInventories() {
       let existing = findItemByAssetId(itemsData, assetid);
 
       if (existing) {
-        console.log(`\n${index}: appid: ${appid} - ${name} (assetid: ${assetid}) ya registrado. Precio: $${existing.price} Vendido: ${existing.sold ? "Sí" : "No"}`);
+        console.log(`\n${index}: appid: ${appid} - ${name} (assetid: ${assetid}) already registered. Price: $${existing.price} Sold: ${existing.sold ? "Yes" : "No"}`);
         continue;
       }
 
-      console.log(`\n${index}: appid: ${appid} - Buscando precio para: ${name} (assetid: ${assetid})...`);
+      console.log(`\n${index}: appid: ${appid} - Fetching price for: ${name} (assetid: ${assetid})...`);
       if (index % 20 === 0 && index !== 0) {
-        console.log(`Esperando ${longDelayDuration} segundos por límite de rate...`);
+        console.log(`Waiting ${longDelayDuration / 1000} seconds for rate limit...`);
         await delayExecution(longDelayDuration);
       }
       const lowest = await getLowestPrice(name, appid);
       if (!lowest) {
-        console.log(`⚠️ ${name} (assetid: ${assetid}) → Sin precio en mercado`);
+        console.log(`⚠️ ${name} (assetid: ${assetid}) → No price in market`);
         continue;
       }
 
       const suggested = Math.max(lowest - 1, 1);
       const price = parseFloat((suggested / 100).toFixed(2));
       console.log(
-        `${name}\n   assetid: ${assetid}\n   Precio actual: $${(lowest / 100).toFixed(2)} → Publicar a: $${price}\n`
+        `${name}\n   assetid: ${assetid}\n   Current price: $${(lowest / 100).toFixed(2)} → List at: $${price}\n`
       );
 
-      // Guardar en itemsData
+      // Save to itemsData
       itemsData.push({
         assetid: assetid,
         appid: appid,
         contextid: contextid,
         amount: amount,
         price: price,
-        sold: false
+        sold: false,
+        wantToSell: wantToSellItem,
       });
 
-      // Guardar itemsData en items.json
+      // Save itemsData to items.json
       writeItemsJson(itemsData);
 
-      await delayExecution(); // pausa entre requests
+      await delayExecution(); // pause between requests
     }
   }
-  console.log(`\nTotal de items en todos los juegos: ${totalItems}`);
+  console.log(`\nTotal items in all games: ${totalItems}`);
 }
 
-// Publicar un ítem en el mercado de Steam
+// List an item on the Steam market
 async function sellItem(assetid, appid, contextid, amount, price) {
-  // El precio debe estar en centavos (ej: $0.05 => 5)
+  // Price must be in cents (e.g. $0.05 => 5)
   const priceCents = Math.round(price * 100);
   const url = `https://steamcommunity.com/market/sellitem/`;
   const body = new URLSearchParams({
@@ -292,82 +292,79 @@ async function sellItem(assetid, appid, contextid, amount, price) {
     });
     const json = await res.json();
     if (json.success) {
-      console.log(`✅ Publicado: assetid=${assetid}, appid=${appid}, contextid=${contextid}, amount=${amount}, price=$${price}`);
+      console.log(`✅ Listed: assetid=${assetid}, appid=${appid}, contextid=${contextid}, amount=${amount}, price=$${price}`);
       return json;
     } else {
-      console.error('❌ Error al publicar:', json);
+      console.error('❌ Error listing:', json);
       return json;
     }
   } catch (err) {
-    console.error('❌ Error de red al publicar:', err);
+    console.error('❌ Network error while listing:', err);
     return null;
   }
 }
 
-
-  // Recorrer un arreglo y publicar cada ítem en el mercado
-  async function sellItemsBatch(items) {
-    const results = [];
-    for (const item of items) {
-      const { assetid, appid, contextid, amount, price } = item;
-      console.log(`\nPublicando assetid=${assetid}, appid=${appid}, contextid=${contextid}, amount=${amount}, price=$${price}...`);
-      const res = await sellItem(assetid, appid, contextid, amount, price);
-      results.push({
-        assetid,
-        success: res?.success || false,
-        message: res?.message || null
-      });
-      await delayExecution(); // Espera 1 segundo entre publicaciones
-    }
-    console.log("\n✅ Proceso de publicación por lote finalizado.");
-    return results;
-
-    async function delayExecution(time = delayDuration) {
-      await new Promise(res => setTimeout(res, time));
-    }
+// Iterate over an array and list each item on the market
+async function sellItemsBatch(items) {
+  const results = [];
+  for (const item of items) {
+    const { assetid, appid, contextid, amount, price } = item;
+    console.log(`\nListing assetid=${assetid}, appid=${appid}, contextid=${contextid}, amount=${amount}, price=$${price}...`);
+    const res = await sellItem(assetid, appid, contextid, amount, price);
+    results.push({
+      assetid,
+      success: res?.success || false,
+      message: res?.message || null
+    });
+    await delayExecution(); // Wait 1 second between listings
   }
+  console.log("\n✅ Batch listing process finished.");
+  return results;
+}
 
-  // Función para vender ítems
-  async function sellItems() {
-    // Leer items.json y filtrar los que tienen wantToSell: true y sold: false
-    const itemsData = readItemsJson();
-    const itemsToSell = itemsData.filter(item => item.wantToSell === true && item.sold === false);
+// Function to sell items
+async function sellItems() {
+  // Read items.json and filter those with wantToSell: true and sold: false
+  const itemsData = readItemsJson();
+  const itemsToSell = itemsData.filter(item => item.wantToSell === true && item.sold === false);
 
-    if (itemsToSell.length === 0) {
-      console.log("No hay ítems marcados para vender (wantToSell: true) en items.json.");
-      return;
-    }
-
-    // Llamada al batch
-    const results = await sellItemsBatch(itemsToSell);
-
-    // Marcar como vendidos en itemsData y guardar resultado de publicación
-    for (const result of results) {
-      const idx = itemsData.findIndex(i => i.assetid === result.assetid);
-      if (idx !== -1) {
-
-        // Si la respuesta fue false cambiar wantToSell a false para no intentar venderlo de nuevo
-        if (result.success === false) {
-          itemsData[idx].wantToSell = false;
-        }
-
-        itemsData[idx].sold = result.success;
-        itemsData[idx].sellResult = {
-          success: result.success,
-          message: result.message || null
-        };
-        // Incrementar soldAttempts
-        if (typeof itemsData[idx].soldAttempts === "number") {
-          itemsData[idx].soldAttempts += 1;
-        } else {
-          itemsData[idx].soldAttempts = 1;
-        }
-      }
-    }
-    writeItemsJson(itemsData);
-    console.log("Se actualizaron los ítems con el resultado de la venta en items.json.");
+  if (itemsToSell.length === 0) {
+    console.log("No items marked for sale (wantToSell: true) in items.json.");
     return;
   }
+
+  // Call batch
+  const results = await sellItemsBatch(itemsToSell);
+
+  // Mark as sold in itemsData and save listing result
+  for (const result of results) {
+    const idx = itemsData.findIndex(i => i.assetid === result.assetid);
+    if (idx !== -1) {
+      // If response was false, set wantToSell to false to avoid retrying
+      if (result.success === false) {
+        itemsData[idx].wantToSell = false;
+      }
+      itemsData[idx].sold = result.success;
+      itemsData[idx].sellResult = {
+        success: result.success,
+        message: result.message || null
+      };
+      // Increment soldAttempts
+      if (typeof itemsData[idx].soldAttempts === "number") {
+        itemsData[idx].soldAttempts += 1;
+      } else {
+        itemsData[idx].soldAttempts = 1;
+      }
+    }
+  }
+  writeItemsJson(itemsData);
+  console.log("Items updated with sale result in items.json.");
+  return;
+}
+
+async function delayExecution(time = delayDuration) {
+  await new Promise(res => setTimeout(res, time));
+}
 
 (async () => {
   await runTests();
