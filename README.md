@@ -33,7 +33,7 @@ This project is a Node.js script to list, analyze, and sell items from your Stea
 ## Usage
 Run the main script:
 ```bash
-node listar-inventario.js
+node inventory-list.js
 ```
 Follow the interactive menu to list cards, check prices, or sell items.
 

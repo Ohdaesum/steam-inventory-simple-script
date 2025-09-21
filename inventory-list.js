@@ -3,18 +3,17 @@ import fetch from "node-fetch";
 import { SESSION_ID, STEAM_LOGIN_SECURE, STEAM_ID } from "./secrets.js";
 import fs from "fs";
 
-// Paste your cookies from Steam Web here
-const sessionid = SESSION_ID;
-const steamLoginSecure = STEAM_LOGIN_SECURE;
-const itemsFile = "items.json";
+// Steam authentication variables (imported from secrets.js)
+// These are required for authenticated requests to the Steam API.
+const sessionid = SESSION_ID;            // Your Steam session ID cookie
+const steamLoginSecure = STEAM_LOGIN_SECURE; // Your Steam 'steamLoginSecure' cookie
+const steamid = STEAM_ID;                // Your SteamID64 (unique user identifier)
 
 // Constant configurations
+const itemsFile = "items.json";
 const delayDuration = 1000; // milliseconds between requests to avoid rate limits
 const longDelayDuration = 60000; // 60 seconds for long waits
-const wantToSellItem = true; // Default value for new items in items.json
-
-// Replace with your SteamID64 (see your profile -> "steamid.io")
-const steamid = STEAM_ID;
+const wantToSellItem = false; // Default value for new items in items.json
 
 // Interactive menu to test functions
 async function runTests() {
@@ -132,9 +131,10 @@ async function getInventory() {
     { appid: 730, contextid: 2, name: "CS:GO" },
     { appid: 570, contextid: 2, name: "Dota 2" },
     { appid: 440, contextid: 2, name: "TF2" },
-    { appid: 238010, contextid: 1, name: "Deus Ex: Human Revolution" }, // contextid 1 is common for most games
-    { appid: 1091500, contextid: 1, name: "Cyberpunk 2077" },
-    // add more games as needed 
+    { appid: 238010, contextid: 2, name: "Deus Ex: Human Revolution" }, // contextid 1 is common for most games
+    { appid: 1091500, contextid: 2, name: "Cyberpunk 2077" },
+    { appid: 578080, contextid: 2, name: "PUBG: BATTLEGROUNDS" },
+    // add more games as needed, youn can find appid in steamdb
   ];
 
   let allItems = [];
@@ -246,6 +246,7 @@ async function retrieveAndDisplayInventories() {
 
       // Save to itemsData
       itemsData.push({
+        name: name,
         assetid: assetid,
         appid: appid,
         contextid: contextid,
@@ -362,6 +363,7 @@ async function sellItems() {
   return;
 }
 
+// Delays the execution of code for a specified amount of time (in milliseconds).
 async function delayExecution(time = delayDuration) {
   await new Promise(res => setTimeout(res, time));
 }
